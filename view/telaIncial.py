@@ -3,9 +3,12 @@ import streamlit as st
 def tela_inicial():
         with st.sidebar:
             st.title("Navegação")
-            if st.button("➡️ Ir para Análise de Dados"):
+            if st.button("➡️ Análise de Dados"):
                 st.session_state["tela"] = "analise"
                 st.rerun() 
+            if st.button("➡️ Visualização de Dados"):
+                st.session_state["tela"] = "visualizacao"
+                st.rerun()
 
         st.title("Análise do Trânsito no Pará")
         st.markdown("*Sua ferramenta para transformar dados de trânsito em ações de segurança.*")

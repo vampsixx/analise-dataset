@@ -7,6 +7,10 @@ def tela_analise():
         if st.button("⬅️ Voltar à Tela Inicial"):
             st.session_state["tela"] = "inicial"
             st.rerun()
+        if st.button("➡️ Visualização de Dados"):
+            st.session_state["tela"] = "visualizacao"
+            st.rerun()
+
         st.info("Carregue as planilhas para análise. Um banco de dados será criado para cada ano.")
 
     st.title("📊 Área de Análise de Acidentes")

@@ -1,12 +1,10 @@
-# Substitua o conteúdo em: model/AcidenteModel.py
 import sqlite3
 import pandas as pd
 import os
 
 class AcidenteModel:
     def __init__(self, db_path):
-        # Garante que o diretório do banco de dados exista
-        # Ex: Se db_path for 'data/acidentes_2023.db', garante que a pasta 'data' exista
+       
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)

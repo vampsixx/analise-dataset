@@ -1,4 +1,3 @@
-# Substitua o conteúdo em: controller/AcidenteController.py
 import pandas as pd
 import re
 import os
@@ -6,7 +5,6 @@ from model.AcidenteModel import AcidenteModel
 
 class AcidenteController:
     def __init__(self):
-        # O model será instanciado dinamicamente, então removemos a inicialização daqui.
         pass
 
     def _extrair_ano_do_nome(self, nome_arquivo):
@@ -44,7 +42,7 @@ class AcidenteController:
             if not df_pa.empty:
                 model.inserir_dados(df_pa)
 
-            return df_pa, db_path  # Retorna o dataframe e o caminho do banco salvo
+            return df_pa, db_path  
 
         except Exception as e:
             raise Exception(f"Erro ao processar a planilha: {e}")
@@ -62,7 +60,7 @@ class AcidenteController:
         """Lê e retorna os dados de um arquivo de banco de dados específico."""
         db_path = f"data/{nome_banco}"
         if not os.path.exists(db_path):
-            return pd.DataFrame() # Retorna dataframe vazio se o arquivo não existir
+            return pd.DataFrame() 
 
         model = AcidenteModel(db_path)
         return model.listar_por_uf("PA")

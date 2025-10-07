@@ -1,6 +1,7 @@
 import streamlit as st
 from view.telaIncial import tela_inicial
 from view.telaAnalise import tela_analise
+from view.visuzalicao import tela_visualizacao
 
 
 st.set_page_config(
@@ -17,6 +18,9 @@ def main():
         tela_inicial()
     elif st.session_state["tela"] == "analise":
         tela_analise()
+    elif st.session_state["tela"] == "visualizacao":
+        tela_visualizacao()
+        
 
 if __name__ == "__main__":
     main()
