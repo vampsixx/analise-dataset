@@ -1,12 +1,20 @@
+# Substitua o conteúdo em: model/AcidenteModel.py
 import sqlite3
 import pandas as pd
+import os
 
 class AcidenteModel:
-    def __init__(self, db_path="data/acidentes.db"):
+    def __init__(self, db_path):
+        # Garante que o diretório do banco de dados exista
+        # Ex: Se db_path for 'data/acidentes_2023.db', garante que a pasta 'data' exista
+        db_dir = os.path.dirname(db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
+
         self.conn = sqlite3.connect(db_path)
         self.create_table()
 
-    
+
     def create_table(self):
         query = """
         CREATE TABLE IF NOT EXISTS acidentes (
@@ -46,7 +54,8 @@ class AcidenteModel:
         self.conn.commit()
 
     def inserir_dados(self, df: pd.DataFrame):
-        df.to_sql("acidentes", self.conn, if_exists="append", index=False)
+        df.to_sql("acidentes", self.conn, if_exists="replace", index=False)
+
 
     def listar_acidentes(self):
         return pd.read_sql("SELECT * FROM acidentes", self.conn)
@@ -54,4 +63,3 @@ class AcidenteModel:
     def listar_por_uf(self, uf="PA"):
         query = f"SELECT * FROM acidentes WHERE uf = ?"
         return pd.read_sql(query, self.conn, params=(uf,))
-        
