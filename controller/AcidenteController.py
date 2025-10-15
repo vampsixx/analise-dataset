@@ -1,4 +1,3 @@
-# Substitua o conteúdo em: controller/AcidenteController.py
 import pandas as pd
 import re
 import os
@@ -8,7 +7,8 @@ class AcidenteController:
     def __init__(self):
         pass
 
-    def _extrair_ano_do_nome(self, nome_arquivo):
+    def extrair_ano_do_nome(self, nome_arquivo):
+        """Usa regex para encontrar um ano de 4 dígitos no nome do arquivo."""
         match = re.search(r'\d{4}', nome_arquivo)
         if match:
             return match.group(0)
@@ -16,7 +16,7 @@ class AcidenteController:
 
     def processar_planilha(self, arquivo):
         try:
-            ano = self._extrair_ano_do_nome(arquivo.name)
+            ano = self.extrair_ano_do_nome(arquivo.name)
             if not ano:
                 raise Exception(f"Nome de arquivo inválido. O nome '{arquivo.name}' deve conter um ano com 4 dígitos.")
 
@@ -57,19 +57,15 @@ class AcidenteController:
         model = AcidenteModel(db_path)
         return model.listar_por_uf("PA")
 
-    # --- NOVOS MÉTODOS DE ANÁLISE ---
     def get_dados_agrupados(self, df, coluna, top_n=10):
-        """Função genérica para agrupar e contar dados de uma coluna."""
         if coluna not in df.columns:
-            return pd.DataFrame() # Retorna DF vazio se a coluna não existir
+            return pd.DataFrame()
         
-        # Conta as ocorrências, ordena e pega os top N
         dados = df[coluna].value_counts().nlargest(top_n).reset_index()
         dados.columns = [coluna, 'total_acidentes']
         return dados
 
     def get_metricas_gerais(self, df):
-        """Calcula as métricas totais (KPIs)."""
         if df.empty:
             return {
                 "total_acidentes": 0, "total_mortos": 0,

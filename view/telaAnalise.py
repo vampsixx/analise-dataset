@@ -1,5 +1,6 @@
 import streamlit as st
 from controller.AcidenteController import AcidenteController
+import os
 
 def tela_analise():
     with st.sidebar:
@@ -14,9 +15,11 @@ def tela_analise():
         st.info("Carregue as planilhas para análise. Um banco de dados será criado para cada ano.")
 
     st.title("📊 Área de Análise de Acidentes")
-
     st.header("1. Carregamento dos Dados")
     st.info("O nome de cada planilha deve conter o ano dos dados (ex: 'dados_2022.csv').")
+
+    if 'confirmation_state' not in st.session_state:
+        st.session_state.confirmation_state = {}
 
     if "uploads" not in st.session_state:
         st.session_state["uploads"] = [None]
@@ -24,7 +27,7 @@ def tela_analise():
     novos_uploads = []
     controller = AcidenteController()
 
-    for i, file in enumerate(st.session_state["uploads"]):
+    for i, file in enumerate(st.session_state.get("uploads", [None])):
         uploaded_file = st.file_uploader(
             f"Planilha {i+1}",
             type=["csv", "xlsx"],
@@ -33,47 +36,57 @@ def tela_analise():
         novos_uploads.append(uploaded_file)
 
         if uploaded_file is not None:
-            with st.expander(f"Analisando Planilha: {uploaded_file.name}", expanded=True):
-                try:
-                    
-                    df_pa, db_path = controller.processar_planilha(uploaded_file)
-                    
-                    st.success(f"Sucesso! Dados salvos em '{db_path}'.")
-                    st.write("Amostra dos dados carregados (UF=PA):")
-                    st.dataframe(df_pa.head()) 
+            st.markdown("---")
+            ano = controller.extrair_ano_do_nome(uploaded_file.name)
+            
+            if not ano:
+                st.error(f"Não foi possível extrair um ano (4 dígitos) do nome do arquivo '{uploaded_file.name}'.")
+                continue
 
-                except Exception as e:
-                    st.error(e)
+            db_path_esperado = f"data/acidentes_{ano}.db"
+            db_existe = os.path.exists(db_path_esperado)
 
-    if len(st.session_state["uploads"]) > 0 and st.session_state["uploads"][-1] is not None:
+            def processar():
+                with st.spinner(f"Processando e salvando dados de {ano}..."):
+                    try:
+                        df_pa, db_path = controller.processar_planilha(uploaded_file)
+                        st.success(f"Sucesso! Dados para o ano de {ano} foram salvos em '{db_path}'.")
+                        with st.expander("Ver amostra dos dados carregados"):
+                            st.dataframe(df_pa.head())
+                    except Exception as e:
+                        st.error(e)
+            
+            if db_existe and st.session_state.confirmation_state.get(i) is None:
+                st.warning(f"⚠️ Já existem dados para o ano de {ano}. Deseja sobrescrevê-los com o arquivo '{uploaded_file.name}'?")
+                col1, col2 = st.columns([1, 4])
+                with col1:
+                    if st.button("Sim, sobrescrever", key=f"overwrite_{i}"):
+                        st.session_state.confirmation_state[i] = 'overwrite'
+                        st.rerun() 
+                with col2:
+                    if st.button("Não, cancelar", key=f"cancel_{i}"):
+                        st.session_state.confirmation_state[i] = 'cancel'
+                        st.rerun() 
+            elif st.session_state.confirmation_state.get(i) == 'overwrite':
+                processar()
+                st.session_state.confirmation_state[i] = 'done' 
+            
+            elif st.session_state.confirmation_state.get(i) == 'cancel':
+                st.info(f"Operação para o arquivo '{uploaded_file.name}' cancelada.")
+                st.session_state.confirmation_state[i] = 'done' 
+
+     
+            elif not db_existe:
+                 processar()
+
+
+    for i in list(st.session_state.confirmation_state.keys()):
+        if i >= len(novos_uploads) or novos_uploads[i] is None:
+            del st.session_state.confirmation_state[i]
+
+
+    if len(st.session_state.get("uploads", [])) > 0 and st.session_state["uploads"][-1] is not None:
         if len(st.session_state["uploads"]) < 3:
             novos_uploads.append(None)
 
     st.session_state["uploads"] = novos_uploads
-
-    st.markdown("---")
-
-    st.header("2. Visualização dos Dados Salvos")
-    
-    bancos_de_dados = controller.listar_bancos_de_dados()
-
-    if not bancos_de_dados:
-        st.warning("Nenhum banco de dados encontrado. Carregue uma planilha para começar.")
-    else:
-        st.subheader("Bancos de Dados Disponíveis:")
-        
-        num_cols = 3
-        cols = st.columns(num_cols)
-        for i, nome_banco in enumerate(bancos_de_dados):
-            with cols[i % num_cols]:
-                if st.button(f"Ver dados de {nome_banco}", key=nome_banco, use_container_width=True):
-                    st.session_state['df_visualizar'] = controller.listar_dados_por_banco(nome_banco)
-                    st.session_state['banco_visualizar'] = nome_banco
-
-    if 'df_visualizar' in st.session_state:
-        st.subheader(f"Visualizando dados de: {st.session_state['banco_visualizar']}")
-        df_view = st.session_state['df_visualizar']
-        if df_view.empty:
-            st.warning("Não há dados para exibir para a UF='PA' neste banco de dados.")
-        else:
-            st.dataframe(df_view)
