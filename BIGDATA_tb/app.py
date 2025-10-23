@@ -2,12 +2,17 @@ import streamlit as st  # construir dashboards
 from streamlit_option_menu import option_menu  # menu de navegação
 import pandas as pd  # manipulação de dados
 import plotly.express as px  # construir graficos
+import re
+from controller.AcidenteController import AcidenteController
+controller = AcidenteController()
+
 st.set_page_config(page_title="Projeto Big Data - Análise de Acidentes de Trânsito no Pará",
                    page_icon=":car:", layout="wide")
+
 with st.sidebar:
     selected = option_menu(
         menu_title="Projeto Big Data",
-        options=["Home", "Analise de dados", "Visualização de Dados", "Acidentes por município",
+        options=["Home", "Análise de dados", "Visualização de Dados", "Acidentes por município",
                  "Classificações", "Período"],
         icons=["house", "bar-chart", "bar-chart", "map", "list", "calendar"],
         menu_icon="cast",
@@ -55,8 +60,8 @@ if selected == "Home":
     st.markdown(
         "## Selecione uma opção no menu lateral para explorar diferentes análises correspondentes aos anos de 2023-2025.")
 
-elif selected == "Analise de dados":
-    st.title("Análise do Trânsito no Pará")
+elif selected == "Análise de dados":
+    st.title("Área de Análise de Acidentes")
     st.markdown(
         "*Sua ferramenta para transformar dados de trânsito em ações de segurança.*")
     st.markdown("---")
@@ -80,14 +85,163 @@ elif selected == "Analise de dados":
                 """
         )
 
-    st.markdown("")
 
-    if st.button(" Começar a Análise"):
-        st.session_state["tela"] = "analise"
-        st.rerun()
+    st.info(
+        "Carregue as planilhas para análise. Um banco de dados será criado para cada ano.")
+    st.header("1. Carregamento dos Dados")
+    st.info(
+        "O nome de cada planilha deve conter o ano dos dados (ex: 'dados_2022.csv').")
+
+    if "uploads" not in st.session_state:
+        st.session_state["uploads"] = [None]
+
+    novos_uploads = []
+    controller = AcidenteController()
+
+    for i, file in enumerate(st.session_state["uploads"]):
+        uploaded_file = st.file_uploader(
+            f"Planilha {i+1}",
+            type=["csv", "xlsx"],
+            key=f"upload_{i}"
+        )
+        novos_uploads.append(uploaded_file)
+
+        if uploaded_file is not None:
+            with st.expander(f"Analisando Planilha: {uploaded_file.name}", expanded=True):
+                try:
+                    df_pa, db_path = controller.processar_planilha(
+                        uploaded_file)
+                    st.success(f"Sucesso! Dados salvos em '{db_path}'.")
+                    st.write("Amostra dos dados carregados (UF=PA):")
+                    st.dataframe(df_pa.head())
+                except Exception as e:
+                    st.error(e)
+
+    if len(st.session_state["uploads"]) > 0 and st.session_state["uploads"][-1] is not None:
+        if len(st.session_state["uploads"]) < 3:
+            novos_uploads.append(None)
+
+    st.session_state["uploads"] = novos_uploads
+
+    st.markdown("---")
+    st.header("2. Visualização dos Dados Salvos")
+
+    bancos_de_dados = controller.listar_bancos_de_dados()
+
+    if not bancos_de_dados:
+        st.warning(
+            "Nenhum banco de dados encontrado. Carregue uma planilha para começar.")
+    else:
+        st.subheader("Bancos de Dados Disponíveis:")
+        num_cols = 3
+        cols = st.columns(num_cols)
+        for i, nome_banco in enumerate(bancos_de_dados):
+            with cols[i % num_cols]:
+                if st.button(f"Ver dados de {nome_banco}", key=nome_banco, use_container_width=True):
+                    st.session_state['df_visualizar'] = controller.listar_dados_por_banco(
+                        nome_banco)
+                    st.session_state['banco_visualizar'] = nome_banco
+
+    if 'df_visualizar' in st.session_state:
+        st.subheader(
+            f"Visualizando dados de: {st.session_state['banco_visualizar']}")
+        df_view = st.session_state['df_visualizar']
+        if df_view.empty:
+            st.warning(
+                "Não há dados para exibir para a UF='PA' neste banco de dados.")
+        else:
+            st.dataframe(df_view)
+
 
 elif selected == "Visualização de Dados":
-    st.header("Visualização de Dados")
+    st.title(" Dashboard de Visualização")
+    st.markdown("---")
+
+    controller = AcidenteController()
+    bancos_de_dados = controller.listar_bancos_de_dados()
+
+    if not bancos_de_dados:
+        st.warning("Nenhum banco de dados foi encontrado na pasta /data.")
+        st.info(
+            "Por favor, vá para a aba 'Análise de Dados' para fazer o upload de uma planilha primeiro.")
+    else:
+        st.header("Selecione o ano para análise:")
+        nome_banco_selecionado = st.selectbox(
+            "Selecione o banco de dados:",
+            options=bancos_de_dados,
+            format_func=lambda x: f"Analisar dados de {re.search(r'\d{4}', x).group(0) if re.search(r'\d{4}', x) else x}"
+        )
+
+        if nome_banco_selecionado:
+            ano = re.search(r'\d{4}', nome_banco_selecionado).group(0) if re.search(
+                r'\d{4}', nome_banco_selecionado) else "Ano Desconhecido"
+            st.header(f"Análise Detalhada - {ano}")
+
+            df = controller.listar_dados_por_banco(nome_banco_selecionado)
+
+            if df.empty:
+                st.warning(
+                    "Não foram encontrados dados para o estado do Pará (PA) neste arquivo.")
+            else:
+                # --- MÉTRICAS GERAIS (KPIs) ---
+                st.subheader("Visão Geral do Ano")
+                metricas = controller.get_metricas_gerais(df)
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Total de Acidentes",
+                            f"{metricas['total_acidentes']:,}".replace(",", "."))
+                col2.metric("Total de Mortes",
+                            f"{metricas['total_mortos']:,}".replace(",", "."))
+                col3.metric(
+                    "Feridos Graves", f"{metricas['total_feridos_graves']:,}".replace(",", "."))
+                col4.metric("Veículos Envolvidos",
+                            f"{metricas['total_veiculos']:,}".replace(",", "."))
+
+                st.markdown("---")
+
+                # --- GRÁFICOS ---
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.subheader("Top 10 Causas de Acidentes")
+                    causas = controller.get_dados_agrupados(
+                        df, 'causa_acidente', top_n=10)
+                    if not causas.empty:
+                        fig_causas = px.bar(
+                            causas,
+                            x='total_acidentes',
+                            y='causa_acidente',
+                            orientation='h',
+                            title="Principais Causas",
+                            color='causa_acidente',
+                            color_discrete_sequence=rocket_palette  # sua paleta personalizada
+                        )
+                        fig_causas.update_layout(
+                            yaxis={'categoryorder': 'total ascending'})
+                        st.plotly_chart(fig_causas, use_container_width=True)
+                    else:
+                        st.warning("Coluna 'causa_acidente' não encontrada.")
+
+                with col2:
+                    st.subheader("Top 10 Municípios com Mais Acidentes")
+                    municipios = controller.get_dados_agrupados(
+                        df, 'municipio', top_n=10)
+                    if not municipios.empty:
+                        fig_municipios = px.bar(
+                            municipios,
+                            x='total_acidentes',
+                            y='municipio',
+                            orientation='h',
+                            title="Municípios com Mais Acidentes",
+                            color='municipio',
+                            color_discrete_sequence=rocket_palette
+                        )
+                        fig_municipios.update_layout(
+                            yaxis={'categoryorder': 'total ascending'})
+                        st.plotly_chart(
+                            fig_municipios, use_container_width=True)
+                    else:
+                        st.warning("Coluna 'municipio' não encontrada.")
+
 
 elif selected == "Acidentes por município":
     st.header("Análise de Acidentes por Município")
@@ -193,6 +347,7 @@ elif selected == "Classificações":
             st.plotly_chart(fig_tipo_pista)
         else:
             st.warning("Coluna 'tipo_pista' não encontrada no arquivo.")
+
 
 elif selected == "Período":
     df = pd.read_csv("acidentes_para.csv")
